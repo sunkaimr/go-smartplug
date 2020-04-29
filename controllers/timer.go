@@ -16,7 +16,7 @@
 package controllers
 
 import (
-	"SmartPlug/models"
+	"smartplug/models"
 	"encoding/json"
 	"fmt"
 	"github.com/astaxie/beego"
@@ -30,22 +30,9 @@ type TimerController struct {
 	beego.Controller
 }
 
-type timerResp struct {
-	Num        int    `json:"Num"`
-	Name       string `json:"Name"`
-	Enable     bool   `json:"Enable"`
-	OnEnable   bool   `json:"OnEnable"`
-	OffEnable  bool   `json:"OffEnable"`
-	Cascode    bool   `json:"Cascode"`
-	Week       int    `json:"Week"`
-	CascodeNum int    `json:"CascodeNum"`
-	OnTime     string `json:"OnTime"`
-	OffTime    string `json:"OffTime"`
-}
-
 func (c *TimerController) GetTimer() {
 	timerStr := c.Ctx.Input.Param(":timer")
-	respTimer := &[]timerResp{}
+	timers := &[]models.Timer{}
 	num := 0
 	if timerStr == "all" {
 		num = 0
@@ -62,7 +49,7 @@ func (c *TimerController) GetTimer() {
 		}
 	}
 
-	respTimer, code, err := queryTimer(num)
+	timers, code, err := queryTimer(num)
 	if err != nil {
 		logs.Error("queryTimer failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(code)
@@ -70,7 +57,7 @@ func (c *TimerController) GetTimer() {
 		return
 	}
 
-	data, err := json.Marshal(*respTimer)
+	data, err := json.Marshal(*timers)
 	if err != nil {
 		logs.Error("Marshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
@@ -82,8 +69,8 @@ func (c *TimerController) GetTimer() {
 }
 
 func (c *TimerController) UpdateTimer() {
-	respTimer := &[]timerResp{}
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, respTimer)
+	timers := &[]models.Timer{}
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, timers)
 	if err != nil {
 		logs.Error("Unmarshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
@@ -91,7 +78,7 @@ func (c *TimerController) UpdateTimer() {
 		return
 	}
 
-	code, err := updateTimerDB(respTimer)
+	code, err := updateTimerDB(timers)
 	if err != nil {
 		logs.Error("update timerDB failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(code)
@@ -101,36 +88,15 @@ func (c *TimerController) UpdateTimer() {
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
 }
 
-func assemblyTimerResp(db *[]models.Timerdb) *[]timerResp {
-	timer := &[]timerResp{}
-	for _, t := range *db {
-		tr := timerResp{}
-		tr.Num = t.Num
-		tr.Name = t.Name
-		tr.Enable = t.Enable
-		tr.OnEnable = t.OnEnable
-		tr.OffEnable = t.OffEnable
-		tr.Cascode = t.Cascode
-		tr.Week = t.Week
-		tr.CascodeNum = t.CascodeNum
-		tr.OnTime = t.OnTime
-		tr.OffTime = t.OffTime
-
-		*timer = append(*timer, tr)
-	}
-	return timer
-}
-
-func queryTimer(timerNum int) (*[]timerResp, int, error) {
-	t := &models.Timerdb{}
+func queryTimer(timerNum int) (*[]models.Timer, int, error) {
+	t := &models.Timer{}
 	if timerNum == 0 {
-
 		timers, err := t.All()
 		if err != nil {
 			logs.Error("query all timer failed, err:%s", err.Error())
 			return nil, http.StatusInternalServerError, err
 		}
-		return assemblyTimerResp(timers), http.StatusOK, nil
+		return timers, http.StatusOK, nil
 	}
 
 	t.Num = timerNum
@@ -139,26 +105,14 @@ func queryTimer(timerNum int) (*[]timerResp, int, error) {
 		logs.Error("query timer failed timer.Num=%d, err:%s", t.Num, err.Error())
 		return nil, http.StatusInternalServerError, err
 	}
-	return assemblyTimerResp(timers), http.StatusOK, nil
+	return timers, http.StatusOK, nil
 }
 
-func updateTimerDB(timerRes *[]timerResp) (int, error) {
-	for _, t := range *timerRes {
-		db := models.Timerdb{}
-		db.Num = t.Num
-		db.Name = t.Name
-		db.Enable = t.Enable
-		db.OnEnable = t.OnEnable
-		db.OffEnable = t.OffEnable
-		db.Cascode = t.Cascode
-		db.Week = t.Week
-		db.CascodeNum = t.CascodeNum
-		db.OnTime = t.OnTime
-		db.OffTime = t.OffTime
-
-		err := db.UpdateByID()
+func updateTimerDB(timers *[]models.Timer) (int, error) {
+	for _, t := range *timers {
+		err := t.UpdateByID()
 		if err != nil {
-			logs.Error("update timer filed timer.Num=%d, err:%s", db.Num, err.Error())
+			logs.Error("update timer filed timer.Num=%d, err:%s", t.Num, err.Error())
 			return http.StatusInternalServerError, err
 		}
 	}

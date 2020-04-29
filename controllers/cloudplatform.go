@@ -17,8 +17,11 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
+	"smartplug/models"
 
 	"net/http"
 )
@@ -27,52 +30,39 @@ type CloudplatformController struct {
 	beego.Controller
 }
 
-type Cloudplatform struct {
-	CloudPlatform  int    `json:"CloudPlatform"`
-	MqttProductKey string `json:"MqttProductKey"`
-	MqttDevName    string `json:"cloud_platform"`
-	MqttDevSecret  string `json:"MqttDevName"`
-	DevType        int    `json:"DevType"`
-	BigiotDevId    string `json:"BigiotDevId"`
-	BigiotApiKey   string `json:"BigiotApiKey"`
-	SwitchId       string `json:"SwitchId"`
-	TempId         string `json:"TempId"`
-	HumidityId     string `json:"HumidityId"`
-	VoltageId      string `json:"VoltageId"`
-	CurrentId      string `json:"CurrentId"`
-	PowerId        string `json:"PowerId"`
-	ElectricityId  string `json:"ElectricityId"`
-	BigiotDevName  string `json:"BigiotDevName"`
-	ConnectSta     string `json:"ConnectSta"`
-}
-
-var cloudplatform = Cloudplatform{}
-
-func init() {
-	cloudplatform.CloudPlatform = 2
-	cloudplatform.MqttProductKey = ""
-	cloudplatform.MqttDevName = ""
-	cloudplatform.MqttDevSecret = ""
-	cloudplatform.DevType = 0
-	cloudplatform.BigiotDevId = "12429"
-	cloudplatform.BigiotApiKey = "bf7ab3c13"
-	cloudplatform.SwitchId = "11380"
-	cloudplatform.TempId = "11772"
-	cloudplatform.HumidityId = ""
-	cloudplatform.VoltageId = "13981"
-	cloudplatform.CurrentId = "13982"
-	cloudplatform.PowerId = "13983"
-	cloudplatform.ElectricityId = "13984"
-	cloudplatform.BigiotDevName = "电热水壶"
-	cloudplatform.ConnectSta = "connect"
-}
+const (
+	CloudPlatform  = "CloudPlatform"
+	MqttProductKey = "MqttProductKey"
+	MqttDevName    = "MqttDevName"
+	MqttDevSecret  = "MqttDevSecret"
+	DevType        = "DevType"
+	BigiotDevId    = "BigiotDevId"
+	BigiotApiKey   = "BigiotApiKey"
+	SwitchId       = "SwitchId"
+	TempId         = "TempId"
+	HumidityId     = "HumidityId"
+	VoltageId      = "VoltageId"
+	CurrentId      = "CurrentId"
+	PowerId        = "PowerId"
+	ElectricityId  = "ElectricityId"
+	BigiotDevName  = "BigiotDevName"
+	ConnectSta     = "ConnectSta"
+)
 
 func (c *CloudplatformController) GetCloudplatform() {
-	data, err := json.Marshal(cloudplatform)
+	cpf := models.Cloudplatform{ID:1}
+	cloudplatforms, err := cpf.All()
 	if err != nil {
+		msg := fmt.Sprintf("query all cloudplatforms DB failed. err:%s", err.Error())
+		logs.Error(msg)
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, msg)))
+	}
+	data, err := json.Marshal((*cloudplatforms)[0])
+	if err != nil {
+		logs.Error(err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
@@ -81,13 +71,79 @@ func (c *CloudplatformController) GetCloudplatform() {
 }
 
 func (c *CloudplatformController) SetCloudplatform() {
+	cloudplatform := make(map[string]interface{})
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cloudplatform)
 	if err != nil {
+		msg := fmt.Sprintf("unmarshal failed. err:%s", err.Error())
+		logs.Error(msg)
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"success", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"failed", "msg":"%s"}`, err.Error())))
 		return
 	}
+
+	code, err := updateCloudPlatformData(cloudplatform)
+	if err != nil {
+		logs.Error(err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"failed", "msg":"%s"}`, err.Error())))
+		return
+	}
+
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
+}
+
+func updateCloudPlatformData(cloudplatform map[string]interface{}) (int, error) {
+	c := models.Cloudplatform{ID: 1}
+	cpfs, err := c.All()
+	if err != nil {
+		msg := fmt.Sprintf("query all cloudplatform failed, err.%s", err.Error())
+		logs.Error(msg)
+		return http.StatusInternalServerError, errors.New(msg)
+	}
+	cpf := (*cpfs)[0]
+
+	for k, v := range cloudplatform {
+		switch k {
+		case CloudPlatform:
+			cpf.CloudPlatform = v.(uint8)
+		case MqttProductKey:
+			cpf.MqttProductKey = v.(string)
+		case MqttDevName:
+			cpf.MqttDevName = v.(string)
+		case MqttDevSecret:
+			cpf.MqttDevSecret = v.(string)
+		case DevType:
+			cpf.DevType = v.(uint8)
+		case BigiotDevId:
+			cpf.BigiotDevId = v.(string)
+		case BigiotApiKey:
+			cpf.BigiotApiKey = v.(string)
+		case SwitchId:
+			cpf.SwitchId = v.(string)
+		case TempId:
+			cpf.TempId = v.(string)
+		case HumidityId:
+			cpf.HumidityId = v.(string)
+		case VoltageId:
+			cpf.VoltageId = v.(string)
+		case CurrentId:
+			cpf.CurrentId = v.(string)
+		case PowerId:
+			cpf.PowerId = v.(string)
+		case ElectricityId:
+			cpf.ElectricityId = v.(string)
+		case BigiotDevName:
+			cpf.BigiotDevName = v.(string)
+		case ConnectSta:
+			cpf.ConnectSta = v.(string)
+		}
+	}
+	err = cpf.Update()
+	if err != nil {
+		msg := fmt.Sprintf("update cloudplatform failed, err.%s", err.Error())
+		logs.Error(msg)
+		return http.StatusInternalServerError, errors.New(msg)
+	}
+	return http.StatusOK, nil
 }

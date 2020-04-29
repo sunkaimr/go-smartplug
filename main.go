@@ -20,16 +20,17 @@ import (
 	"github.com/astaxie/beego/logs"
 	_ "github.com/go-sql-driver/mysql"
 
-	"SmartPlug/models"
-	_ "SmartPlug/routers"
+	"smartplug/models"
+	_ "smartplug/routers"
 )
 
 func init(){
 	logs.SetLogger(logs.AdapterConsole)
 	logs.SetLevel(logs.LevelDebug)
 	logs.EnableFuncCallDepth(true)
+	logs.SetLogFuncCallDepth(1)
 
-	beego.BConfig.AppName = "SmartPlug"
+	beego.BConfig.AppName = "smartplug"
 	beego.BConfig.RunMode = "dev"
 	beego.BConfig.CopyRequestBody = true
 	beego.BConfig.Listen.HTTPAddr = "localhost"
@@ -45,6 +46,29 @@ func main() {
 		return
 	}
 
-	logs.Info("CheckTimerData succesd")
+	err = models.CheckDelayData()
+	if err != nil {
+		logs.Error("CheckDelayData failed, err:%s", err.Error())
+		return
+	}
+
+	err = models.CheckInfraredData()
+	if err != nil {
+		logs.Error("CheckInfraredData failed, err:%s", err.Error())
+		return
+	}
+
+	err = models.CheckMeterData()
+	if err != nil {
+		logs.Error("CheckMeterData failed, err:%s", err.Error())
+		return
+	}
+
+	err = models.CheckCloudplatformData()
+	if err != nil {
+		logs.Error("CheckCloudplatformData failed, err:%s", err.Error())
+		return
+	}
+
 	beego.Run()
 }

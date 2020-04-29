@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"net/http"
+	"smartplug/models"
 	"strconv"
 )
 
@@ -27,71 +29,38 @@ type DelayController struct {
 	beego.Controller
 }
 
-type Delay struct {
-	Num           int    `json:"Num"`
-	Name          string `json:"Name"`
-	Enable        bool   `json:"Enable"`
-	OnEnable      bool   `json:"OnEnable"`
-	OffEnable     bool   `json:"OffEnable"`
-	CycleTimes    int    `json:"CycleTimes"`
-	TmpCycleTimes int    `json:"TmpCycleTimes"`
-	SwFlag        int    `json:"SwFlag"`
-	Cascode       bool   `json:"Cascode"`
-	CascodeNum    int    `json:"CascodeNum"`
-	OnInterval    string `json:"OnInterval"`
-	OffInterval   string `json:"OffInterval"`
-	TimePoint     string `json:"TimePoint"`
-}
-
-var delay = []Delay{}
-
-func init() {
-	for i := 0; i < 10; i++ {
-		d := Delay{}
-		d.Num = i + 1
-		d.Name = fmt.Sprintf("delay %d", i+1)
-		d.Enable = false
-		d.OnEnable = true
-		d.OffEnable = true
-		d.CycleTimes = 1
-		d.TmpCycleTimes = 1
-		d.SwFlag = 0
-		d.Cascode = true
-		d.CascodeNum = i + 1
-		d.OnInterval = "00:15"
-		d.OffInterval = "00:01"
-		d.TimePoint = "19:03"
-
-		delay = append(delay, d)
-	}
-}
-
 func (c *DelayController) GetDelay() {
 	delayStr := c.Ctx.Input.Param(":delay")
-	respDelay := []Delay{}
+	delays := &[]models.Delay{}
+	num := 0
 	if delayStr == "all" {
-		respDelay = delay
+		num = 0
 	} else {
 		num, err := strconv.Atoi(delayStr)
 		if err != nil {
 			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+			c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 			return
-		} else if num > len(infrared) {
+		} else if num > models.MaxTimerNum {
 			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%d up to limit %d"}`, num, len(infrared)-1)))
+			c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%d up to limit %d"}`, num, models.MaxTimerNum)))
 			return
 		}
-		respDelay = append(respDelay, delay[num-1])
 	}
 
-	data, err := json.Marshal(respDelay)
+	delays, code, err := queryDelay(num)
 	if err != nil {
+		logs.Error("queryDelay failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		return
+	}
+
+	data, err := json.Marshal(*delays)
+	if err != nil {
+		logs.Error("Marshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
@@ -99,25 +68,52 @@ func (c *DelayController) GetDelay() {
 }
 
 func (c *DelayController) UpdateDelay() {
-	respDelay := []Delay{}
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &respDelay)
+	delays := &[]models.Delay{}
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, delays)
 	if err != nil {
+		logs.Error("Unmarshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 
-	for _, v := range respDelay {
-		if v.Num < 0 || v.Num >= len(delay) {
-			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%s is num is less 0 or large than %d"}`, v.Name, len(infrared))))
-			return
-		}
-		delay[v.Num-1] = v
+	code, err := updateDelayDB(delays)
+	if err != nil {
+		logs.Error("update timerDB failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"failed", "msg":"%s"}`, err.Error())))
 	}
-
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
+}
+
+func queryDelay(num int) (*[]models.Delay, int, error) {
+	d := &models.Delay{}
+	if num == 0 {
+		delays, err := d.All()
+		if err != nil {
+			logs.Error("query all delay failed, err:%s", err.Error())
+			return nil, http.StatusInternalServerError, err
+		}
+		return delays, http.StatusOK, nil
+	}
+
+	d.Num = num
+	delays, err := d.GetByID()
+	if err != nil {
+		logs.Error("query delay failed delay.Num=%d, err:%s", d.Num, err.Error())
+		return nil, http.StatusInternalServerError, err
+	}
+	return delays, http.StatusOK, nil
+}
+
+func updateDelayDB(delays *[]models.Delay) (int, error) {
+	for _, d := range *delays {
+		err := d.UpdateByID()
+		if err != nil {
+			logs.Error("update delay filed delay.Num=%d, err:%s", d.Num, err.Error())
+			return http.StatusInternalServerError, err
+		}
+	}
+	return http.StatusOK, nil
 }

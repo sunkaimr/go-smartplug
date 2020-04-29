@@ -16,7 +16,7 @@
 package test
 
 import (
-	_ "SmartPlug/routers"
+	_ "smartplug/routers"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"

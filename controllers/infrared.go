@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"net/http"
+	"smartplug/models"
 	"strconv"
 )
 
@@ -27,55 +29,39 @@ type InfraredController struct {
 	beego.Controller
 }
 
-type Infrared struct {
-	Num      int    `json:"Num"`
-	Name     string `json:"Name"`
-	Enable   bool   `json:"Enable"`
-	OnValue  string `json:"OnValue"`
-	OffValue string `json:"OffValue"`
-}
-
-var infrared = []Infrared{}
-
-func init() {
-	for i := 0; i < 10; i++ {
-		v := Infrared{}
-		v.Num = i + 1
-		v.Name = fmt.Sprintf("infrared %d", i+1)
-		v.Enable = false
-		v.OnValue = "0"
-		v.OffValue = "0"
-
-		infrared = append(infrared, v)
-	}
-}
 
 func (c *InfraredController) GetInfrared() {
 	infraredStr := c.Ctx.Input.Param(":infrared")
-	respInfrared := []Infrared{}
+	infrared := &[]models.Infrared{}
+	num := 0
 	if infraredStr == "all" {
-		respInfrared = infrared
+		num = 0
 	} else {
 		num, err := strconv.Atoi(infraredStr)
 		if err != nil {
 			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+			c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 			return
-		} else if num > len(infrared) {
+		} else if num > models.MaxTimerNum {
 			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%d up to limit %d"}`, num, len(infrared)-1)))
+			c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%d up to limit %d"}`, num, models.MaxTimerNum)))
 			return
 		}
-		respInfrared = append(respInfrared, infrared[num-1])
 	}
 
-	data, err := json.Marshal(respInfrared)
+	infrared, code, err := queryInfrared(num)
 	if err != nil {
+		logs.Error("queryTimer failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		return
+	}
+
+	data, err := json.Marshal(*infrared)
+	if err != nil {
+		logs.Error("Marshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
@@ -83,27 +69,54 @@ func (c *InfraredController) GetInfrared() {
 }
 
 func (c *InfraredController) UpdateInfrared() {
-	respInfrared := []Infrared{}
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &respInfrared)
+	infrareds := &[]models.Infrared{}
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, infrareds)
 	if err != nil {
+		logs.Error("Unmarshal failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 
-	for _, v := range respInfrared {
-		if v.Num < 0 || v.Num >= len(delay) {
-			c.Ctx.ResponseWriter.WriteHeader(http.StatusBadRequest)
-			c.Ctx.ResponseWriter.Write([]byte(
-				fmt.Sprintf(`{"result":"fail", "msg":"%s is num is less 0 or large than %d"}`, v.Name, len(infrared))))
-			return
-		}
-		infrared[v.Num-1] = v
+	code, err := updateInfraredDB(infrareds)
+	if err != nil {
+		logs.Error("update Infrared to DB failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"failed", "msg":"%s"}`, err.Error())))
 	}
-
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
+}
+
+func queryInfrared(num int) (*[]models.Infrared, int, error) {
+	infrared := &models.Infrared{}
+	if num == 0 {
+		timers, err := infrared.All()
+		if err != nil {
+			logs.Error("query all infrared failed, err:%s", err.Error())
+			return nil, http.StatusInternalServerError, err
+		}
+		return timers, http.StatusOK, nil
+	}
+
+	infrared.Num = num
+	infrareds, err := infrared.GetByID()
+	if err != nil {
+		logs.Error("query infrared failed timer.Num=%d, err:%s", infrared.Num, err.Error())
+		return nil, http.StatusInternalServerError, err
+	}
+	return infrareds, http.StatusOK, nil
+}
+
+func updateInfraredDB(infrareds *[]models.Infrared) (int, error) {
+	for _, i := range *infrareds {
+		err := i.UpdateByID()
+		if err != nil {
+			logs.Error("update timer infrared infrareds.Num=%d, err:%s", i.Num, err.Error())
+			return http.StatusInternalServerError, err
+		}
+	}
+	return http.StatusOK, nil
 }
 
 func (c *InfraredController) GetInfraredValue() {

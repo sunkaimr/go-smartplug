@@ -16,7 +16,7 @@
 package routers
 
 import (
-	"SmartPlug/controllers"
+	"smartplug/controllers"
 	"github.com/astaxie/beego"
 )
 

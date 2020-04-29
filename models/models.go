@@ -31,6 +31,6 @@ func init() {
 		fmt.Println("RegisterDataBase fail, ", err.Error())
 		return
 	}
-	orm.RegisterModel(new(Timerdb))
+	orm.RegisterModel(new(Timer), new(Delay), new(Infrared), new(Meter), new(Cloudplatform))
 	orm.RunSyncdb("default", false, true)
 }

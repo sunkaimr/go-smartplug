@@ -19,76 +19,92 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"net/http"
+	"smartplug/models"
 )
 
 type MeterController struct {
 	beego.Controller
 }
 
-type Meter struct {
-	Voltage            string `json:"Voltage"`
-	Current            string `json:"Current"`
-	Power              string `json:"Power"`
-	ApparentPower      string `json:"ApparentPower"`
-	PowerFactor        string `json:"PowerFactor"`
-	Electricity        string `json:"Electricity"`
-	RunTime            string `json:"RunTime"`
-	UnderVoltage       string `json:"UnderVoltage"`
-	OverVoltage        string `json:"OverVoltage"`
-	OverCurrent        string `json:"OverCurrent"`
-	OverPower          string `json:"OverPower"`
-	UnderPower         string `json:"UnderPower"`
-	UnderVoltageEnable bool   `json:"UnderVoltageEnable"`
-	OverVoltageEnable  bool   `json:"OverVoltageEnable"`
-	OverCurrentEnable  bool   `json:"OverCurrentEnable"`
-	OverPowerEnable    bool   `json:"OverPowerEnable"`
-	UnderPowerEnable   bool   `json:"UnderPowerEnable"`
-}
-
-var meter = Meter{}
-
-func init() {
-	meter.Voltage = "226.6"
-	meter.Current = "0.0"
-	meter.Power = "0.0"
-	meter.ApparentPower = "0.0"
-	meter.PowerFactor = "0.00"
-	meter.Electricity = "9887.6"
-	meter.RunTime = "3480.9"
-	meter.UnderVoltage = "180"
-	meter.OverVoltage = "250"
-	meter.OverCurrent = " 10"
-	meter.OverPower = "2200"
-	meter.UnderPower = "0.5"
-	meter.UnderVoltageEnable = true
-	meter.OverVoltageEnable = true
-	meter.OverCurrentEnable = true
-	meter.OverPowerEnable = true
-	meter.UnderPowerEnable = false
-}
-
 func (c *MeterController) GetMeter() {
-	data, err := json.Marshal(meter)
+	meter := &models.Meter{ID: 1}
+	meters, err := meter.All()
+	if err != nil {
+		logs.Error("query all meter failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+	}
+
+	data, err := json.Marshal((*meters)[0])
 	if err != nil {
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write(data)
-
 }
 
 func (c *MeterController) SetMeter() {
+	meter := make(map[string]interface{})
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &meter)
 	if err != nil {
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"success", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		return
+	}
+
+	code, err := updateMeterDB(meter)
+	if err != nil {
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
+}
+
+func updateMeterDB(meter map[string]interface{}) (int, error) {
+	m, err := (&models.Meter{ID: 1}).All()
+	if err != nil {
+		logs.Error("query meter failed, err:%s", err.Error())
+		return http.StatusInternalServerError, err
+	}
+
+	for k, v := range meter {
+		switch k {
+		case models.Electricity:
+			(*m)[0].Electricity = v.(string)
+		case models.RunTime:
+			(*m)[0].RunTime = v.(string)
+		case models.OverCurrent:
+			(*m)[0].OverCurrent = v.(string)
+		case models.OverCurrentEnable:
+			(*m)[0].OverCurrentEnable = v.(bool)
+		case models.OverPower:
+			(*m)[0].OverPower = v.(string)
+		case models.OverPowerEnable:
+			(*m)[0].OverPowerEnable = v.(bool)
+		case models.OverVoltage:
+			(*m)[0].OverVoltage = v.(string)
+		case models.OverVoltageEnable:
+			(*m)[0].OverVoltageEnable = v.(bool)
+		case models.UnderPower:
+			(*m)[0].UnderPower = v.(string)
+		case models.UnderPowerEnable:
+			(*m)[0].UnderPowerEnable = v.(bool)
+		case models.UnderVoltage:
+			(*m)[0].UnderVoltage = v.(string)
+		case models.UnderVoltageEnable:
+			(*m)[0].UnderVoltageEnable = v.(bool)
+		}
+	}
+	err = (&(*m)[0]).Update()
+	if err != nil {
+		logs.Error("update meter to DB failed, err:%s", err.Error())
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 }

@@ -43,7 +43,7 @@ type SystemSet struct {
 var systemSet = SystemSet{}
 
 func init() {
-	systemSet.PlugName = "SmartPlug"
+	systemSet.PlugName = "smartplug"
 	systemSet.RelayPowerUp = 0
 	systemSet.WifiMode = 1
 	systemSet.WifiSSID = "TPLINK"
