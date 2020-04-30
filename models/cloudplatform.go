@@ -26,11 +26,11 @@ const ()
 
 type Cloudplatform struct {
 	ID             int       `orm:"column(id);pk"`
-	CloudPlatform  uint8     `json:"CloudPlatform" orm:"column(cloud_platform);"`
+	CloudPlatform  int       `json:"CloudPlatform" orm:"column(cloud_platform);"`
 	MqttProductKey string    `json:"MqttProductKey" orm:"column(mqtt_product_key)"`
 	MqttDevName    string    `json:"cloud_platform" orm:"column(mqtt_devName)"`
 	MqttDevSecret  string    `json:"MqttDevName" orm:"column(mqtt_dev_secret)"`
-	DevType        uint8     `json:"DevType" orm:"column(dev_type);"`
+	DevType        int       `json:"DevType" orm:"column(dev_type);"`
 	BigiotDevId    string    `json:"BigiotDevId" orm:"column(bigiot_dev_id)"`
 	BigiotApiKey   string    `json:"BigiotApiKey" orm:"column(bigiot_api_key)"`
 	SwitchId       string    `json:"SwitchId" orm:"column(switch_id)"`
@@ -50,14 +50,17 @@ func (m *Cloudplatform) TableName() string {
 	return "cloudplatform"
 }
 
-func (m *Cloudplatform) All() (*[]Cloudplatform, error) {
-	d := []Cloudplatform{}
+func (m *Cloudplatform) All() (*Cloudplatform, error) {
+	d := &Cloudplatform{}
 	o := orm.NewOrm()
-	_, err := o.QueryTable(m).Filter("id", m.ID).All(&d)
+	n, err := o.QueryTable(m).Filter("id", m.ID).All(d)
 	if err != nil {
 		return nil, err
 	}
-	return &d, nil
+	if n < 1 {
+		return nil, nil
+	}
+	return d, nil
 }
 
 func (m *Cloudplatform) Add() error {
@@ -117,7 +120,7 @@ func newDefaultCloudplatform() *Cloudplatform {
 }
 
 func CheckCloudplatformData() error {
-	t := &Cloudplatform{}
+	t := &Cloudplatform{ID: 1}
 	if !t.Exist() {
 		return newDefaultCloudplatform().Add()
 	}

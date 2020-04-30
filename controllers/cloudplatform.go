@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"reflect"
 	"smartplug/models"
 
 	"net/http"
@@ -30,35 +31,16 @@ type CloudplatformController struct {
 	beego.Controller
 }
 
-const (
-	CloudPlatform  = "CloudPlatform"
-	MqttProductKey = "MqttProductKey"
-	MqttDevName    = "MqttDevName"
-	MqttDevSecret  = "MqttDevSecret"
-	DevType        = "DevType"
-	BigiotDevId    = "BigiotDevId"
-	BigiotApiKey   = "BigiotApiKey"
-	SwitchId       = "SwitchId"
-	TempId         = "TempId"
-	HumidityId     = "HumidityId"
-	VoltageId      = "VoltageId"
-	CurrentId      = "CurrentId"
-	PowerId        = "PowerId"
-	ElectricityId  = "ElectricityId"
-	BigiotDevName  = "BigiotDevName"
-	ConnectSta     = "ConnectSta"
-)
-
 func (c *CloudplatformController) GetCloudplatform() {
 	cpf := models.Cloudplatform{ID:1}
-	cloudplatforms, err := cpf.All()
+	cloudPlatForm, err := cpf.All()
 	if err != nil {
 		msg := fmt.Sprintf("query all cloudplatforms DB failed. err:%s", err.Error())
 		logs.Error(msg)
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, msg)))
 	}
-	data, err := json.Marshal((*cloudplatforms)[0])
+	data, err := json.Marshal(cloudPlatForm)
 	if err != nil {
 		logs.Error(err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
@@ -71,8 +53,8 @@ func (c *CloudplatformController) GetCloudplatform() {
 }
 
 func (c *CloudplatformController) SetCloudplatform() {
-	cloudplatform := make(map[string]interface{})
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cloudplatform)
+	cloudPlatFormMap := make(map[string]interface{})
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cloudPlatFormMap)
 	if err != nil {
 		msg := fmt.Sprintf("unmarshal failed. err:%s", err.Error())
 		logs.Error(msg)
@@ -81,7 +63,7 @@ func (c *CloudplatformController) SetCloudplatform() {
 		return
 	}
 
-	code, err := updateCloudPlatformData(cloudplatform)
+	code, err := updateCloudPlatformData(cloudPlatFormMap)
 	if err != nil {
 		logs.Error(err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(code)
@@ -93,50 +75,31 @@ func (c *CloudplatformController) SetCloudplatform() {
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
 }
 
-func updateCloudPlatformData(cloudplatform map[string]interface{}) (int, error) {
+func updateCloudPlatformData(cloudPlatFormMap map[string]interface{}) (int, error) {
 	c := models.Cloudplatform{ID: 1}
-	cpfs, err := c.All()
+	cpf, err := c.All()
 	if err != nil {
 		msg := fmt.Sprintf("query all cloudplatform failed, err.%s", err.Error())
 		logs.Error(msg)
 		return http.StatusInternalServerError, errors.New(msg)
 	}
-	cpf := (*cpfs)[0]
 
-	for k, v := range cloudplatform {
-		switch k {
-		case CloudPlatform:
-			cpf.CloudPlatform = v.(uint8)
-		case MqttProductKey:
-			cpf.MqttProductKey = v.(string)
-		case MqttDevName:
-			cpf.MqttDevName = v.(string)
-		case MqttDevSecret:
-			cpf.MqttDevSecret = v.(string)
-		case DevType:
-			cpf.DevType = v.(uint8)
-		case BigiotDevId:
-			cpf.BigiotDevId = v.(string)
-		case BigiotApiKey:
-			cpf.BigiotApiKey = v.(string)
-		case SwitchId:
-			cpf.SwitchId = v.(string)
-		case TempId:
-			cpf.TempId = v.(string)
-		case HumidityId:
-			cpf.HumidityId = v.(string)
-		case VoltageId:
-			cpf.VoltageId = v.(string)
-		case CurrentId:
-			cpf.CurrentId = v.(string)
-		case PowerId:
-			cpf.PowerId = v.(string)
-		case ElectricityId:
-			cpf.ElectricityId = v.(string)
-		case BigiotDevName:
-			cpf.BigiotDevName = v.(string)
-		case ConnectSta:
-			cpf.ConnectSta = v.(string)
+	for i := 0; i < reflect.TypeOf(cpf).Elem().NumField(); i++ {
+		fieldName := reflect.TypeOf(cpf).Elem().Field(i).Name
+		if v, ok := cloudPlatFormMap[fieldName]; ok {
+			fieldValue := reflect.ValueOf(cpf).Elem().Field(i)
+			switch v.(type){
+			case float64:
+				v1 := (int)(v.(float64))
+				fieldValue.Set(reflect.ValueOf(v1))
+			case string, bool :
+				fieldValue.Set(reflect.ValueOf(v))
+			default:
+				msg := fmt.Sprintf("can not conversion %s:%s to %s",
+					fieldName, fieldValue.Kind().String(), reflect.TypeOf(v).String())
+				logs.Error(msg)
+				return http.StatusInternalServerError, errors.New(msg)
+			}
 		}
 	}
 	err = cpf.Update()

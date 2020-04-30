@@ -28,7 +28,7 @@ func init(){
 	logs.SetLogger(logs.AdapterConsole)
 	logs.SetLevel(logs.LevelDebug)
 	logs.EnableFuncCallDepth(true)
-	logs.SetLogFuncCallDepth(1)
+	logs.SetLogFuncCallDepth(3)
 
 	beego.BConfig.AppName = "smartplug"
 	beego.BConfig.RunMode = "dev"
@@ -67,6 +67,12 @@ func main() {
 	err = models.CheckCloudplatformData()
 	if err != nil {
 		logs.Error("CheckCloudplatformData failed, err:%s", err.Error())
+		return
+	}
+
+	err = models.CheckSystemData()
+	if err != nil {
+		logs.Error("CheckSystemData failed, err:%s", err.Error())
 		return
 	}
 

@@ -17,6 +17,7 @@ package models
 
 import (
 	"fmt"
+	"github.com/astaxie/beego/logs"
 	"github.com/astaxie/beego/orm"
 )
 
@@ -31,6 +32,8 @@ func init() {
 		fmt.Println("RegisterDataBase fail, ", err.Error())
 		return
 	}
-	orm.RegisterModel(new(Timer), new(Delay), new(Infrared), new(Meter), new(Cloudplatform))
+	orm.RegisterModel(new(Timer), new(Delay), new(Infrared), new(Meter), new(Cloudplatform), new(System))
 	orm.RunSyncdb("default", false, true)
+
+	logs.Info("init DataBase succes")
 }

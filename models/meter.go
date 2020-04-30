@@ -22,21 +22,6 @@ import (
 	"time"
 )
 
-const (
-	Electricity        = "Electricity"
-	RunTime            = "RunTime"
-	OverCurrent        = "OverCurrent"
-	OverCurrentEnable  = "OverCurrentEnable"
-	OverPower          = "OverPower"
-	OverPowerEnable    = "OverPowerEnable"
-	OverVoltage        = "OverVoltage"
-	OverVoltageEnable  = "OverVoltageEnable"
-	UnderPower         = "UnderPower"
-	UnderPowerEnable   = "UnderPowerEnable"
-	UnderVoltage       = "UnderVoltage"
-	UnderVoltageEnable = "UnderVoltageEnable"
-)
-
 type Meter struct {
 	ID                 int       `orm:"column(id);pk"`
 	Voltage            string    `json:"Voltage" orm:"column(voltage);"`
@@ -64,14 +49,17 @@ func (m *Meter) TableName() string {
 	return "meter"
 }
 
-func (m *Meter) All() (*[]Meter, error) {
-	d := []Meter{}
+func (m *Meter) All() (*Meter, error) {
+	d := &Meter{}
 	o := orm.NewOrm()
-	_, err := o.QueryTable(m).Filter("id", m.ID).All(&d)
+	n, err := o.QueryTable(m).Filter("id", m.ID).All(d)
 	if err != nil {
 		return nil, err
 	}
-	return &d, nil
+	if n < 1 {
+		return nil, nil
+	}
+	return d, nil
 }
 
 func (m *Meter) Add() error {

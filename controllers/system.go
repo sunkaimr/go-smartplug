@@ -17,66 +17,88 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/astaxie/beego"
+	"github.com/astaxie/beego/logs"
 	"net/http"
+	"reflect"
+	"smartplug/models"
 )
 
 type SystemController struct {
 	beego.Controller
 }
 
-type SystemSet struct {
-	PlugName        string `json:"PlugName"`
-	RelayPowerUp    int    `json:"RelayPowerUp"`
-	WifiMode        int    `json:"WifiMode"`
-	WifiSSID        string `json:"WifiSSID"`
-	WifiPasswd      string `json:"WifiPasswd"`
-	SmartConfigFlag bool   `json:"SmartConfigFlag"`
-	RelayStatus     bool   `json:"RelayStatus"`
-	IP              string `json:"IP"`
-	GetWay          string `json:"GetWay"`
-	NetMask         string `json:"NetMask"`
-	Mac             string `json:"Mac"`
-}
-
-var systemSet = SystemSet{}
-
-func init() {
-	systemSet.PlugName = "smartplug"
-	systemSet.RelayPowerUp = 0
-	systemSet.WifiMode = 1
-	systemSet.WifiSSID = "TPLINK"
-	systemSet.WifiPasswd = "123456"
-	systemSet.SmartConfigFlag = true
-	systemSet.RelayStatus = true
-	systemSet.IP = "192.168.1.104"
-	systemSet.GetWay = "192.168.1.1"
-	systemSet.NetMask = "255.255.255.0"
-	systemSet.Mac = "ECFABC0D6308"
-}
-
 func (c *SystemController) GetSystem() {
-	data, err := json.Marshal(systemSet)
+	s := models.System{}
+	system, err := s.All()
 	if err != nil {
+		logs.Error("query system data failed, err:%s", err.Error())
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		return
+	}
+	data, err := json.Marshal(system)
+	if err != nil {
+		logs.Error("marshal failed, err:%s", err.Error())
+		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write(data)
-
 }
 
 func (c *SystemController) SetSystem() {
-	err := json.Unmarshal(c.Ctx.Input.RequestBody, &systemSet)
+	systemMap := make(map[string]interface{})
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &systemMap)
 	if err != nil {
 		c.Ctx.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-		c.Ctx.ResponseWriter.Write([]byte(
-			fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
+		return
+	}
+
+	code , err := updateSystemDB(systemMap)
+	if err != nil {
+		c.Ctx.ResponseWriter.WriteHeader(code)
+		c.Ctx.ResponseWriter.Write([]byte(fmt.Sprintf(`{"result":"fail", "msg":"%s"}`, err.Error())))
 		return
 	}
 	c.Ctx.ResponseWriter.WriteHeader(http.StatusOK)
 	c.Ctx.ResponseWriter.Write([]byte(`{"result":"success", "msg":""}`))
+}
+
+func updateSystemDB( systemMap map[string]interface{})(int, error){
+	s := models.System{}
+	system, err := s.All()
+	if err != nil {
+		logs.Error("query system data failed, err:%s", err.Error())
+		return http.StatusInternalServerError, err
+	}
+
+	for i := 0; i < reflect.TypeOf(system).Elem().NumField(); i++ {
+		fieldName := reflect.TypeOf(system).Elem().Field(i).Name
+		if v, ok := systemMap[fieldName]; ok {
+			fieldValue := reflect.ValueOf(system).Elem().Field(i)
+			switch v.(type){
+			case float64:
+				v1 := (int)(v.(float64))
+				fieldValue.Set(reflect.ValueOf(v1))
+			case string, bool :
+				fieldValue.Set(reflect.ValueOf(v))
+			default:
+				msg := fmt.Sprintf("can not conversion %s:%s to %s",
+					fieldName, fieldValue.Kind().String(), reflect.TypeOf(v).String())
+				logs.Error(msg)
+				return http.StatusInternalServerError, errors.New(msg)
+			}
+		}
+	}
+	err = system.Update()
+	if err != nil {
+		logs.Error("update system data failed, err:%s", err.Error())
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
 }

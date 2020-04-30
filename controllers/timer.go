@@ -48,7 +48,6 @@ func (c *TimerController) GetTimer() {
 			return
 		}
 	}
-
 	timers, code, err := queryTimer(num)
 	if err != nil {
 		logs.Error("queryTimer failed, err:%s", err.Error())
