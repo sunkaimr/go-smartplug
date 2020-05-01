@@ -25,16 +25,17 @@ import (
 )
 
 func init(){
+	//logs.SetLogger(logs.AdapterFile,`{"filename":"smartplug.log"}`)
 	logs.SetLogger(logs.AdapterConsole)
-	logs.SetLevel(logs.LevelDebug)
+	logs.SetLevel(logs.LevelInfo)
 	logs.EnableFuncCallDepth(true)
 	logs.SetLogFuncCallDepth(3)
 
 	beego.BConfig.AppName = "smartplug"
 	beego.BConfig.RunMode = "dev"
 	beego.BConfig.CopyRequestBody = true
-	beego.BConfig.Listen.HTTPAddr = "localhost"
-	beego.BConfig.Listen.HTTPPort = 80
+	//beego.BConfig.Listen.HTTPAddr = "localhost"
+	//beego.BConfig.Listen.HTTPPort = 80
 	beego.BConfig.WebConfig.DirectoryIndex = true
 	beego.SetStaticPath("/", "static")
 }
