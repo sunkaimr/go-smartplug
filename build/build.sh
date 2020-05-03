@@ -45,7 +45,7 @@ function docker_build()
     chmod +x ${SERVICE_NAME}
     chmod +x entrypoint.sh
     
-    info=`docker build -t ${SERVICE_NAME}:${TAG} .`
+    info=`sudo docker build -t ${SERVICE_NAME}:${TAG} .`
     if [[ $? != 0 ]]; then
         LogOut "docker build failed, error: " $info
         exit 1
@@ -55,7 +55,7 @@ function docker_build()
 
 function docker_save()
 {
-    info=`docker save -o ${SERVICE_NAME}_${TAG}.tar ${SERVICE_NAME}:${TAG}`
+    info=`sudo docker save -o ${SERVICE_NAME}_${TAG}.tar ${SERVICE_NAME}:${TAG}`
     if [[ $? != 0 ]]; then
         LogOut "docker save failed, error: " $info
         exit 1
