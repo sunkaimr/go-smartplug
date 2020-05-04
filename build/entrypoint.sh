@@ -4,7 +4,7 @@ export SERVICE_NAME="smartplug"
 
 function LogOut()
 {
-	echo "`date "+%Y-%m-%d %H:%M:%S"` " $@
+	print "`date "+%Y-%m-%d %H:%M:%S"` " $@
 }
 
 function start()
