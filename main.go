@@ -16,28 +16,23 @@
 package main
 
 import (
+	"fmt"
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/logs"
+	"github.com/astaxie/beego/orm"
 	_ "github.com/go-sql-driver/mysql"
+	"os"
+	"smartplug/config"
 
 	"smartplug/models"
 	_ "smartplug/routers"
 )
 
-func init(){
-	//logs.SetLogger(logs.AdapterFile,`{"filename":"smartplug.log"}`)
-	logs.SetLogger(logs.AdapterConsole)
-	logs.SetLevel(logs.LevelInfo)
-	logs.EnableFuncCallDepth(true)
-	logs.SetLogFuncCallDepth(3)
-
-	beego.BConfig.AppName = "smartplug"
-	beego.BConfig.RunMode = "dev"
-	beego.BConfig.CopyRequestBody = true
-	//beego.BConfig.Listen.HTTPAddr = "localhost"
-	//beego.BConfig.Listen.HTTPPort = 80
-	beego.BConfig.WebConfig.DirectoryIndex = true
-	beego.SetStaticPath("/", "static")
+func init() {
+	config.InitConfig()
+	initLog()
+	initDB()
+	initWeb()
 }
 
 func main() {
@@ -78,4 +73,54 @@ func main() {
 	}
 
 	beego.Run()
+}
+
+func initLog() {
+	//logs.SetLogger(logs.AdapterFile,`{"filename":"smartplug.log"}`)
+	// 日志打印到控制台
+	logs.SetLogger(logs.AdapterConsole)
+	logs.EnableFuncCallDepth(true)
+	logs.SetLogFuncCallDepth(3)
+
+	switch config.LogLevel {
+	case "LevelInfo":
+		logs.SetLevel(logs.LevelInfo)
+	case "LevelTrace":
+		logs.SetLevel(logs.LevelTrace)
+	case "LevelWarn":
+		logs.SetLevel(logs.LevelWarn)
+	default:
+		logs.SetLevel(logs.LevelInfo)
+	}
+}
+
+func initDB() {
+	if config.DBDriver != "mysql" {
+		logs.Error("unsupport db driver %s", config.DBDriver)
+		os.Exit(1)
+	}
+
+	err := orm.RegisterDriver(config.DBDriver, orm.DRMySQL)
+	if err != nil {
+		logs.Error("RegisterDriver fail, ", err.Error())
+		return
+	}
+	err = orm.RegisterDataBase("default", config.DBDriver,
+		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", config.DBuser, config.DBpasswd,
+			config.DBaddr, config.DBport, config.Database))
+	if err != nil {
+		logs.Error("RegisterDataBase fail, ", err.Error())
+		return
+	}
+	orm.RegisterModel(new(models.Timer), new(models.Delay), new(models.Infrared), new(models.Meter),
+		new(models.Cloudplatform), new(models.System))
+	orm.RunSyncdb("default", false, true)
+
+	logs.Info("init DataBase succes")
+}
+
+func initWeb() {
+	beego.BConfig.CopyRequestBody = true
+	beego.BConfig.WebConfig.DirectoryIndex = true
+	beego.SetStaticPath("/", "static")
 }
