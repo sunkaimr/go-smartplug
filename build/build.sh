@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# use: build.sh release or build.sh debug
+# usge: build/build.sh release or build/build.sh debug
 
 set -x
 
 export SERVICE_NAME="smartplug"
-export GOPROXY="https://goproxy.io"
+export GOPROXY="https://goproxy.cn"
 
 TAG="latest"
 
@@ -26,19 +26,18 @@ function docker_check()
 
 function build()
 {
-    pushd ../
     err=`go build -o ${SERVICE_NAME}`
     if [[ $? != 0 ]]; then
         LogOut "build failed, error: " $err
         exit 1
     fi
-    ls -l |grep $$SERVICE_NAME
+    ls -l |grep $SERVICE_NAME
     LogOut "build ok"
-    popd    
 }
 
 function docker_build()
 {
+    pushd build
     cp -r ../conf .
     cp -r ../static .
     cp ../${SERVICE_NAME} .
@@ -51,16 +50,24 @@ function docker_build()
         exit 1
     fi
     LogOut "docker build ok"
+
+    rm -rf conf
+    rm -rf static
+    rm -rf ${SERVICE_NAME}
+
+    popd
 }
 
 function docker_save()
 {
+    pushd build
     info=`sudo docker save -o ${SERVICE_NAME}_${TAG}.tar ${SERVICE_NAME}:${TAG}`
     if [[ $? != 0 ]]; then
         LogOut "docker save failed, error: " $info
         exit 1
     fi
     LogOut "docker save ok, $SERVICE_NAME_$TAG.tar"
+    popd
 }
 
 if [[ $# = 1 ]]; then
@@ -70,7 +77,6 @@ if [[ $# = 1 ]]; then
         TAG=`date "+%Y%m%d%H%M%S"`
     fi
 fi
-
 
 docker_check
 build

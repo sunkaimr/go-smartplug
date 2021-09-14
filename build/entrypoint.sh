@@ -4,27 +4,27 @@ export SERVICE_NAME="smartplug"
 
 function LogOut()
 {
-	print "`date "+%Y-%m-%d %H:%M:%S"` " $@
+	echo "`date "+%Y-%m-%d %H:%M:%S"` " $@
 }
 
 function start()
 {
-    ./smartplug &
-    LogOut "service $service_name start"
+    LogOut "service $service_name starting"
+    ./smartplug
 }
 
 function stop()
 {
+    LogOut "service $service_name stopped"
     pkill $service_name
-    LogOut "service $service_name stop"
 }
 
 function restart()
 {
     pkill $service_name
     sleep 1
-     ./smartplug &
-    LogOut "service $service_name restart"
+    LogOut "service $service_name restarting"
+     ./smartplug
 }
 
 function status()
@@ -58,8 +58,4 @@ else
 	echo "Usage: $0 ( status | start | stop | restart)";
 	exit 1;
 fi
-		
-while true
-do
-    sleep 30
-done
+
